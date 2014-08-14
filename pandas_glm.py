@@ -197,41 +197,40 @@ def main(DATASET):
   if plot:
     fig = plt.figure(0)
     
-    ax1 = fig.add_subplot(211)
-    ax2 = fig.add_subplot(212)
+    # ax1 = fig.add_subplot(211)
+    ax2 = fig.add_subplot(111)
 
     x_straight = np.arange(0,1.1,0.1)
-    ax1.plot(x_straight, x_straight, color="black", lw=2)
+    # ax1.plot(x_straight, x_straight, color="black", lw=2)
 
     # sns.kdeplot(measured, predicted, bw="silverman", grid=50, cmap="BuGn_d", ax=ax1)
-    ax1.errorbar(measured, predicted, fmt="o",zorder=1, color="gray", label="{0}".format(DATASET))
+    # ax1.errorbar(measured, predicted, fmt="o",zorder=1, color="gray", label="{0}".format(DATASET))
     
-    ax1.set_xlabel(r"$z_{\rm spec}$", fontsize=20)
-    ax1.set_ylabel(r"$z_{\rm phot}$", fontsize=20)
-    ax1.set_xlim(data_dictionary[DATASET]["lims"]["x"])
-    ax1.set_ylim(data_dictionary[DATASET]["lims"]["y"])
+    # ax1.set_xlabel(r"$z_{\rm spec}$", fontsize=20)
+    # ax1.set_ylabel(r"$z_{\rm phot}$", fontsize=20)
+    # ax1.set_xlim(data_dictionary[DATASET]["lims"]["x"])
+    # ax1.set_ylim(data_dictionary[DATASET]["lims"]["y"])
 
+    #          kde_kws={"color": "seagreen", "lw": 3, "label": "KDE"},
     sns.distplot(outliers,
-             kde_kws={"color": "seagreen", "lw": 3, "label": "KDE"},
              hist_kws={"histtype": "stepfilled", "color": "slategray"}, ax=ax2)
     
     ax2.set_xlabel(r"$\frac{z_{\rm phot}-z_{\rm spec}}{1+z_{\rm spec}}$", fontsize=20)
     ax2.set_ylabel(r"$\rm Density$", fontsize=20)
 
+    plt.savefig("KDE_PLOT_{0}.pdf".format(DATASET), format="pdf")
 
-  g = sns.JointGrid(measured, predicted)
+  plt.clf()
+  g = sns.JointGrid(measured, predicted,size=7,space=0)
   g.plot_marginals(sns.distplot, kde=True, color="green")
   g.plot_joint(plt.scatter, color="silver", edgecolor="white")
   g.plot_joint(sns.kdeplot, kind="hex")
-  g.ax_joint.set(xlim=data_dictionary[DATASET]["lims"]["x"], ylim=data_dictionary[DATASET]["lims"]["y"])
-    # axs = sns.jointplot(measured, predicted, kind="hex", xlim=data_dictionary[DATASET]["lims"]["x"], ylim=data_dictionary[DATASET]["lims"]["y"], color="#8855AA")
-
-    # axs.set_axis_labels(xlabel=r"$z_{\rm spec}$", ylabel=r"$z_{\rm phot}$")
-
-  print g.ax_joint
+  g.ax_joint.set(xlim=data_dictionary[DATASET]["lims"]["x"], ylim=data_dictionary[DATASET]["lims"]["y"])  
+  g.set_axis_labels(xlabel=r"$z_{\rm spec}$", ylabel=r"$z_{\rm phot}$", fontsize=20)
+  g.ax_joint.errorbar(x_straight, x_straight, lw=2)
 
   plt.legend(loc=0)
-  plt.show()
+  plt.savefig("KDE_2D_PLOT_{0}.pdf".format(DATASET), format="pdf")
 
 
 if __name__=='__main__':
