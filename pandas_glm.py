@@ -69,7 +69,7 @@ def main(DATASET):
 
   t_start = time.time()
 
-  DATADIR = "/home/jonny/workspace/mlearning/wgcs/lisbon_2014/data/"
+  DATADIR = "../data/"
 
   data_dictionary = {
   "SDSS": {"Filename": "{0}/gal.csv".format(DATADIR), "PCAHeader": ["u","g","r","i","z"], \
@@ -81,7 +81,7 @@ def main(DATASET):
 
   "PHAT0": {"Filename": "{0}/noise_training_big.csv".format(DATADIR), "PCAHeader": ["up","gp","rp","ip","zp","Y","J","H","K","IRAC_1","IRAC_2"], \
             "n_components": 9, "formula": "redshift ~ PC1*PC2*PC3*PC4*PC5",\
-            "test_size": 400, "sample_size": -1, \
+            "test_size": 5000, "sample_size": -1, \
             "remove_header": False, \
             "lims": {"x": [0., 1.5], "y": [0., 1.5]},
             },
@@ -200,7 +200,7 @@ def main(DATASET):
     # ax1 = fig.add_subplot(211)
     ax2 = fig.add_subplot(111)
 
-    x_straight = np.arange(0,1.1,0.1)
+    x_straight = np.arange(0,1.6,0.1)
     # ax1.plot(x_straight, x_straight, color="black", lw=2)
 
     # sns.kdeplot(measured, predicted, bw="silverman", grid=50, cmap="BuGn_d", ax=ax1)
@@ -221,13 +221,20 @@ def main(DATASET):
     plt.savefig("KDE_PLOT_{0}.pdf".format(DATASET), format="pdf")
 
   plt.clf()
-  g = sns.JointGrid(measured, predicted,size=7,space=0)
+  g = sns.JointGrid(measured, predicted,size=4,space=0)
   g.plot_marginals(sns.distplot, kde=True, color="green")
   g.plot_joint(plt.scatter, color="silver", edgecolor="white")
   g.plot_joint(sns.kdeplot, kind="hex")
   g.ax_joint.set(xlim=data_dictionary[DATASET]["lims"]["x"], ylim=data_dictionary[DATASET]["lims"]["y"])  
-  g.set_axis_labels(xlabel=r"$z_{\rm spec}$", ylabel=r"$z_{\rm phot}$", fontsize=20)
+  g.set_axis_labels(xlabel=r"$z_{\rm spec}$", ylabel=r"$z_{\rm phot}$")
   g.ax_joint.errorbar(x_straight, x_straight, lw=2)
+
+  # Temp solution
+  # http://stackoverflow.com/questions/21913671/subplots-adjust-with-seaborn-regplot
+  axj, axx, axy = plt.gcf().axes
+  axj.set_position([.15, .12, .7, .7])
+  axx.set_position([.15, .85, .7, .13])
+  axy.set_position([.88, .12, .13, .7])
 
   plt.legend(loc=0)
   plt.savefig("KDE_2D_PLOT_{0}.pdf".format(DATASET), format="pdf")
