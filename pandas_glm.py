@@ -69,7 +69,7 @@ def main(DATASET):
 
   t_start = time.time()
 
-  DATADIR = "/home/jonny/workspace/mlearning/wgcs/lisbon_2014/data/"
+  DATADIR = "../data/"
 
   data_dictionary = {
   "SDSS": {"Filename": "{0}/gal.csv".format(DATADIR), "PCAHeader": ["u","g","r","i","z"], \
