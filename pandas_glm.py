@@ -215,8 +215,9 @@ def main(DATASET):
     sns.distplot(outliers,
              hist_kws={"histtype": "stepfilled", "color": "slategray"}, ax=ax2)
     
-    ax2.set_xlabel(r"$\frac{z_{\rm phot}-z_{\rm spec}}{1+z_{\rm spec}}$", fontsize=20)
+    ax2.set_xlabel(r"$(z_{\rm phot}-z_{\rm spec})/1+z_{\rm spec}$", fontsize=20)
     ax2.set_ylabel(r"$\rm Density$", fontsize=20)
+    ax2.set_position([.15,.15,.75,.75])
 
     plt.savefig("KDE_PLOT_{0}.pdf".format(DATASET), format="pdf")
 
@@ -236,7 +237,6 @@ def main(DATASET):
   axx.set_position([.15, .85, .7, .13])
   axy.set_position([.88, .12, .13, .7])
 
-  plt.legend(loc=0)
   plt.savefig("KDE_2D_PLOT_{0}.pdf".format(DATASET), format="pdf")
 
 
