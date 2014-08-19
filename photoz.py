@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 """
+Photometric redshift library that implements Generalised Linear Models.
 """
 
 __author__ = "Jonathan Elliott"
@@ -23,7 +24,8 @@ class PhotoSample(object):
     datefmt= '%m/%d/%Y %I:%M:%S %p'
     formatter = logging.Formatter(fmt=logfmt,datefmt=datefmt)
     logger = logging.getLogger('__main__')
-    logging.root.setLevel(logging.DEBUG)
+    # logging.root.setLevel(logging.DEBUG)
+    logging.root.setLevel(logging.WARNING)
     ch = logging.StreamHandler() #console handler
     ch.setFormatter(formatter)
     logger.addHandler(ch)
@@ -81,7 +83,6 @@ class PhotoSample(object):
       else:
         return data_frame
 
-
     except:
       self.logger.info("Failed to open CSV file: {0}".format(sys.exc_info()[0]))
       sys.exit(0)
@@ -109,17 +110,18 @@ class PhotoSample(object):
     for i in range(len(x)):
       if i>0: x_cf.append(x[i]+x_cf[i-1])
       else: x_cf.append(x[i])
-    x_cf = x_cf/sum(x_cf)
+    x_cf = x_cf
 
+    j = False
     for i in range(len(x_cf)):
-      if x_cf[i]>0.95:
+      if x_cf[i]>0.9995:
         j = i
-      elif i == len(x_cf)-1:
-        j = i
+        break
+    if not j: j = len(x_cf)-1
 
     self.logger.info("explained variance: {0}".format(pca.explained_variance_ratio_))
     self.logger.info("CDF: {0}".format(x_cf))
-    self.logger.info("95% variance reached with {0} components".format(j+1))
+    self.logger.info("99.5% variance reached with {0} components".format(j+1))
 
     self.num_components = j+1
 
@@ -140,7 +142,7 @@ class PhotoSample(object):
     # Cross Validation Section
     ##
     if not self.test_size:
-      self.test_size = int(self.data_frame.shape[0]*0.1)
+      self.test_size = int(self.data_frame.shape[0]*0.2)
 
     self.logger.info("Splitting into training/testing sets. Number of testing: {0}".format(self.test_size))
     ## Split into train/test
@@ -178,7 +180,7 @@ class PhotoSample(object):
     self.data_frame_train = pd.DataFrame(col_train)
 
 
-  def do_GLM(self):
+  def do_GLM(self, disp=1):
 
     import statsmodels.api as sm
     import statsmodels.formula.api as smf
@@ -213,7 +215,8 @@ class PhotoSample(object):
       # Quantile regression
       model = smf.quantreg(formula=self.formula, data=self.data_frame_train)
       results = model.fit(q=.5)
-      print(results.summary())
+      if verbose:
+        self.logger.info(results.summary())
     else:
       model = smf.glm(formula=self.formula, data=self.data_frame_train, family=self.family)
       results = model.fit()
@@ -261,8 +264,7 @@ class PhotoSample(object):
     ax.set_ylabel(r"$\rm Density$", fontsize=20)
     ax.set_position([.15,.15,.75,.75])
 
-    plt.savefig("PHOTZ_KDE_1D.pdf", format="pdf")
-    plt.clf()
+    plt.savefig("PHOTZ_KDE_1D_{0}.pdf".format(self.family_name), format="pdf")
 
 
   def make_2D_KDE(self):
@@ -280,19 +282,27 @@ class PhotoSample(object):
     measured = self.measured[rows]
     predicted = self.predicted[rows]
 
-    fig = plt.figure()
+    xmin, xmax = 0, measured.max()
+    ymin, ymax = 0, xmax
 
-    ax = fig.add_subplot(111)
-    x_straight = np.arange(0,1.6,0.1)
-    
-    sns.distplot(outliers, hist_kws={"histtype": "stepfilled", "color": "slategray"}, ax=ax)
-  
-    ax.set_xlabel(r"$(z_{\rm phot}-z_{\rm spec})/1+z_{\rm spec}$", fontsize=20)
-    ax.set_ylabel(r"$\rm Density$", fontsize=20)
-    ax.set_position([.15,.15,.75,.75])
+    x_straight = np.arange(xmin, xmax+0.1, 0.1)
+    plt.figure()
 
-    plt.savefig("PHOTZ_KDE_2D.pdf".format("test"), format="pdf")
-    plt.clf()
+    g = sns.JointGrid(measured, predicted, size=10, space=0)
+    g.plot_marginals(sns.distplot, kde=True, color="green")
+    g.plot_joint(plt.scatter, color="silver", edgecolor="white")
+    g.plot_joint(sns.kdeplot, kind="hex")
+    g.ax_joint.set(xlim=[xmin, xmax], ylim=[ymin, ymax])  
+    g.set_axis_labels(xlabel=r"$z_{\rm spec}$", ylabel=r"$z_{\rm phot}$")
+    g.ax_joint.errorbar(x_straight, x_straight, lw=2)
+
+    # Temp solution
+    # http://stackoverflow.com/questions/21913671/subplots-adjust-with-seaborn-regplot
+    axj, axx, axy = plt.gcf().axes
+    axj.set_position([.15, .12, .7, .7])
+    axx.set_position([.15, .85, .7, .13])
+    axy.set_position([.88, .12, .13, .7])
+    plt.savefig("PHOTZ_KDE_2D_{0}.pdf".format(self.family_name), format="pdf")
 
   def make_violin(self):
 
@@ -300,7 +310,7 @@ class PhotoSample(object):
     import matplotlib.pyplot as plt
     import seaborn as sns
 
-    self.logger.info("Generating 2D KDE plot...")
+    self.logger.info("Generating violin plot...")
     ind = range(len(self.outliers))
     rows = list(set(np.random.choice(ind,5000)))
     self.logger.info("Using a smaller size for space ({0} objects)".format(5000))
@@ -335,8 +345,9 @@ class PhotoSample(object):
 
     ax.set_ylabel(r"$(z_{\rm phot}-z_{\rm spec})/1+z_{\rm spec}$", fontsize=20)
     ax.set_xlabel(r"$z_{\rm spec}$", fontsize=20)
+    ax.set_ylim([-1.0,1.0])
 
-    plt.savefig("PHOTZ_VIOLIN_PLOT.pdf", format="pdf")
+    plt.savefig("PHOTZ_VIOLIN_{0}.pdf".format(self.family_name), format="pdf")
 
   def run_full(self, show=False):
     self.do_PCA()
@@ -355,21 +366,29 @@ class PhotoSample(object):
 
 def main():
 
-  # PHAT0 = PhotoSample(filename="../data/PHAT0.csv")
-  # PHAT0.num_components = 7
+  # PHAT0 = PhotoSample(filename="../data/PHAT0_small.csv", family="Gamma", link="log")
+  # PHAT0.num_components = 9
   # PHAT0.test_size = 4000
+  # PHAT0.do_PCA()
   # PHAT0.formula = "redshift ~ PC1*PC2*PC3*PC4*PC5*PC6*PC7"
   # PHAT0.run_full(show=True)
 
 
-  # TWOSLAQ = PhotoSample(filename="../data/2slaq.csv", family="Gamma", Testing=True)
+  # TWOSLAQ = PhotoSample(filename="../data/2slaq_small.csv", family="Gamma", Testing=False, link="log")
   # TWOSLAQ.run_full(show=True)
 
-  # SDSS = PhotoSample(filename_train="../data/SDSS_train.csv", filename_test="../data/SDSS_test.csv", family="Quantile")
+  # SDSS = PhotoSample(filename_train="../data/SDSS_train.csv", filename_test="../data/SDSS_test.csv", family="Gamma", link="log")
   SDSS = PhotoSample(filename="../data/SDSS_nospec.csv", family="Gamma", link="log", Testing=False)
-  SDSS.test_size = 5000
-  SDSS.num_components = 3
-  SDSS.run_full(show=True)
+  SDSS.test_size = 100
+  # SDSS.num_components = 3
+  # SDSS.run_full(show=True)
+  SDSS.do_PCA()
+  SDSS.split_sample(random=True)
+  SDSS.do_GLM()
+
+  # SDSS.make_1D_KDE()
+  # SDSS.make_2D_KDE()
+  # SDSS.make_violin()
 
 
 
