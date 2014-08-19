@@ -76,11 +76,12 @@ class PhotoSample(object):
 
       self.data_frame_header = [i for i in data_frame.columns if i not in ["redshift", "specObjID"]]
 
-      # rows = np.random.choice(data_frame.index.values, 20000)
-      # sampled_df = data_frame.ix[rows]
+      rows = np.random.choice(data_frame.index.values, 20000)
+      #self.test_size = 10000
+      sampled_df = data_frame.ix[rows]
 
-      return data_frame
-      # return sampled_df
+      # return data_frame
+      return sampled_df
 
     except:
       self.logger.info("Failed to open CSV file: {0}".format(sys.exc_info()[0]))
@@ -120,7 +121,7 @@ class PhotoSample(object):
       
     if random:
       from sklearn.cross_validation import train_test_split
-      train, test = train_test_split(self.PCA_data_frame, test_size=int(self.test_size), random_state=42)
+      test, train = train_test_split(self.PCA_data_frame, test_size=int(self.test_size), random_state=42)
     else:
       left = self.data_frame_train.shape[0]
 
@@ -165,9 +166,15 @@ class PhotoSample(object):
 
     self.logger.info("GLM with Gamma family,\tformula: {0}\tlink: log".format(self.formula))
     self.logger.info("Fitting...")
-    model = smf.glm(formula=self.formula, data=self.data_frame_train, family=family)
-    results = model.fit()
-    self.logger.info(results.summary())
+    # model = smf.glm(formula=self.formula, data=self.data_frame_train, family=family)
+    # results = model.fit()
+    # self.logger.info(results.summary())
+
+
+
+    model = smf.quantreg(formula=self.formula, data=self.data_frame_train)
+    results = model.fit(q=.5)
+    print(results.summary())
 
     # Plot the model with our test data
     ## Prediction
@@ -203,7 +210,8 @@ class PhotoSample(object):
     ax.set_position([.15,.15,.75,.75])
 
     plt.savefig("KDE_PLOT_{0}.pdf".format("test"), format="pdf")
-    plt.clf()
+
+    plt.figure()
 
     g = sns.JointGrid(self.measured, self.predicted,size=4,space=0)
     g.plot_marginals(sns.distplot, kde=True, color="green")
@@ -219,6 +227,20 @@ class PhotoSample(object):
     axj.set_position([.15, .12, .7, .7])
     axx.set_position([.15, .85, .7, .13])
     axy.set_position([.88, .12, .13, .7])
+
+    plt.figure()
+
+    bins = np.arange(0,1,0.1)
+    digitized = np.digitize(self.measured, bins)
+
+    outliers = (self.measured - self.predicted)/(self.measured+1)
+
+    violins = [outliers[digitized == i] for i in range(1, len(bins))]
+    violins = [i for i in violins if len(i)>1]
+    print violins
+    sns.offset_spines()
+    sns.violinplot(violins)
+    sns.despine(trim=True)
 
     plt.savefig("KDE_2D_PLOT_{0}.pdf".format("test"), format="pdf")
     if show:
@@ -237,19 +259,49 @@ class PhotoSample(object):
 
     self.split_sample(random=random)
     self.do_GLM()
-    self.make_plot(show=show)
+
+    if show:
+      self.make_plot(show=show)
 
 
 def main():
+
+  PHAT0 = PhotoSample(filename="../data/PHAT0.csv")
+  PHAT0.num_components = 7
+  PHAT0.test_size = 4000
+  PHAT0.formula = "redshift ~ PC1*PC2*PC3*PC4*PC5*PC6*PC7"
+  PHAT0.run_full(show=True)
+
 
   # TWOSLAQ = PhotoSample(filename="../data/2slaq.csv")
   # TWOSLAQ.print_info()
   # TWOSLAQ.run_full(show=True)
 
-  SDSS = PhotoSample(filename_train="../data/SDSS_train.csv", filename_test="../data/SDSS_test.csv")
-  # SDSS = PhotoSample(filename="../data/SDSS_ntrai.csv")
-  SDSS.print_info()
-  SDSS.run_full(show=True)
+  # SDSS = PhotoSample(filename_train="../data/SDSS_train.csv", filename_test="../data/SDSS_test.csv")
+  # SDSS = PhotoSample(filename="../data/SDSS_nospec.csv")
+  # SDSS.test_size = 20000
+  # SDSS.print_info()
+  # SDSS.run_full(show=True)
+
+  # size = [1000, 2000, 5000, 7000, 10000, 20000, 30000, 40000, 50000]
+  # ce = []
+
+  # for si in size:
+  #   SDSS.test_size = si
+  #   SDSS.run_full(show=False)
+  #   ce.append(SDSS.catastrophic_error)
+
+  # import numpy
+  # ce = numpy.array(ce)
+  # size = numpy.array(size)
+
+  # import matplotlib.pyplot as plt
+
+  # fig = plt.figure(0)
+  # ax = fig.add_subplot(111)
+  # ax.errorbar(size, ce, fmt="o")
+  # plt.show()
+
 
 
 if __name__=='__main__':
