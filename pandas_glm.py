@@ -72,9 +72,9 @@ def main(DATASET):
   DATADIR = "../data/"
 
   data_dictionary = {
-  "SDSS": {"Filename": "{0}/gal.csv".format(DATADIR), "PCAHeader": ["u","g","r","i","z"], \
+  "SDSS": {"Filename": "{0}/SDSS_nospec.csv".format(DATADIR), "PCAHeader": ["dered_u","dered_g","dered_r","dered_i","dered_z"], \
            "n_components": 5, "formula": "redshift ~ PC1*PC2*PC3",\
-           "test_size": 4000  , "sample_size": -1, \
+           "test_size": 10000  , "sample_size": -1, \
            "remove_header": "specObjID",
            "lims": {"x": [0., 1.5], "y": [0., 1.5]},
            },

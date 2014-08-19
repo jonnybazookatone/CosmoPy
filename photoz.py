@@ -15,7 +15,7 @@ import time, argparse, logging
 
 class PhotoSample(object):
 
-  def __init__(self, filename_train=False, filename_test=False, filename=False):
+  def __init__(self, filename_train=False, filename_test=False, filename=False, family="Gamma", link=False, Testing=False):
 
     # Setup the logger to the command line
     # To a file can also be added fairly easily
@@ -30,26 +30,23 @@ class PhotoSample(object):
     self.logger = logger
 
     # Book keeping of what the user entered
+    self.logger.info("You gave the dataset: {0}".format(filename))
     self.filename_train = filename_train
     self.filename_test = filename_test
     self.filename = filename
 
-    # PCA analysis
-    self.num_components = 5
-    self.test_size = 10000
-    
-  
-    self.PCA_data_frame = None
-    self.data_frame_test = None
-    self.data_frame_train = None
-
     # GLM
-    ## Set the formula
-    self.formula = "redshift ~ PC1*PC2*PC3"
+    self.family_name = family
+    self.link = link
 
     # Plots
     self.lims = {"x": [0.3, 0.8], "y": [0.41, 0.71]}
 
+
+    # Testing
+    self.Testing = Testing
+    self.test_size = False
+    self.num_components = False
 
     # This is for more test purposes
     if self.filename:
@@ -69,19 +66,21 @@ class PhotoSample(object):
       self.logger.warning("You must give a training and test set or a complete file.")
       sys.exit(0)
 
+
   def load_data_frame(self, filename):
     try:
       data_frame = pd.read_csv(filename, encoding="utf-8")
 
-
       self.data_frame_header = [i for i in data_frame.columns if i not in ["redshift", "specObjID"]]
 
-      rows = np.random.choice(data_frame.index.values, 20000)
-      #self.test_size = 10000
-      sampled_df = data_frame.ix[rows]
+      if self.Testing:
+        rows = np.random.choice(data_frame.index.values, 10000)
+        sampled_df = data_frame.ix[rows]
+        return sampled_df
+      
+      else:
+        return data_frame
 
-      # return data_frame
-      return sampled_df
 
     except:
       self.logger.info("Failed to open CSV file: {0}".format(sys.exc_info()[0]))
@@ -90,17 +89,41 @@ class PhotoSample(object):
   def do_PCA(self):
     # TODO:
     # Do the following on the fly:
-    #   1. determine num_components
-    #   2. determine formula
     #   3. determine test size
 
     from sklearn.decomposition import PCA
+
+    # Number of components
+    if not self.num_components:
+      self.num_components = len([i for i in self.data_frame.columns if i != "redshift"])
+    
+
     self.logger.info("Carrying out Principle Component Analysis ({0} components)".format(self.num_components))
     pca = PCA(self.num_components)
 
-    print self.data_frame[self.data_frame_header].shape
-
+    
     pca.fit(self.data_frame[self.data_frame_header])
+
+    x = pca.explained_variance_ratio_
+    x_cf = []
+    for i in range(len(x)):
+      if i>0: x_cf.append(x[i]+x_cf[i-1])
+      else: x_cf.append(x[i])
+    x_cf = x_cf/sum(x_cf)
+
+    for i in range(len(x_cf)):
+      if x_cf[i]>0.95:
+        j = i
+      elif i == len(x_cf)-1:
+        j = i
+
+    self.logger.info("explained variance: {0}".format(pca.explained_variance_ratio_))
+    self.logger.info("CDF: {0}".format(x_cf))
+    self.logger.info("95% variance reached with {0} components".format(j+1))
+
+    self.num_components = j+1
+
+    
     M_pca = pca.fit_transform(self.data_frame)
 
     M_df = {}
@@ -116,6 +139,9 @@ class PhotoSample(object):
 
     # Cross Validation Section
     ##
+    if not self.test_size:
+      self.test_size = int(self.data_frame.shape[0]*0.1)
+
     self.logger.info("Splitting into training/testing sets. Number of testing: {0}".format(self.test_size))
     ## Split into train/test
       
@@ -148,8 +174,6 @@ class PhotoSample(object):
         col_train["PC{0:d}".format(i+1)] = train["PC{0:d}".format(i+1)]
         col_test["PC{0:d}".format(i+1)] = test["PC{0:d}".format(i+1)]
 
-
-
     self.data_frame_test = pd.DataFrame(col_test)
     self.data_frame_train = pd.DataFrame(col_train)
 
@@ -160,23 +184,46 @@ class PhotoSample(object):
     import statsmodels.formula.api as smf
     import statsmodels.genmod as smg
 
-    ## Load the Gamma family and the log-link
-    log_link = smg.families.links.log
-    family = sm.families.Gamma(link=log_link)
+    # Decide the family    
+    if self.family_name == "Gamma":
+      if self.link == "log":
+        self.family = sm.families.Gamma(link=smg.families.links.log)
+      else:
+        self.family = sm.families.Gamma()
+    elif self.family_name == "Quantile":
+        self.family = self.family_name
+        self.link = "None"
+    else:
+      logger.info("You can only pick the family: Gamma and Quantile")
 
-    self.logger.info("GLM with Gamma family,\tformula: {0}\tlink: log".format(self.formula))
+    # Decide the formula
+    formula = "redshift ~ "
+    for i in range(self.num_components):
+      if i<self.num_components-1:
+        formula += "PC{0}*".format(i+1)
+      else:
+        formula += "PC{0}".format(i+1)
+    self.formula = formula
+
+    self.logger.info("Family: {0} with \tformula: {1}\tlink: {2}".format(self.family_name, self.formula, self.link))
     self.logger.info("Fitting...")
-    # model = smf.glm(formula=self.formula, data=self.data_frame_train, family=family)
-    # results = model.fit()
-    # self.logger.info(results.summary())
+    
+    t1 = time.time()
+    if self.family == "Quantile":
+      # Quantile regression
+      model = smf.quantreg(formula=self.formula, data=self.data_frame_train)
+      results = model.fit(q=.5)
+      print(results.summary())
+    else:
+      model = smf.glm(formula=self.formula, data=self.data_frame_train, family=self.family)
+      results = model.fit()
+      self.logger.info(results.summary())
+    t2 = time.time()
 
+    dt = (t2 - t1)
+    self.logger.info("Time taken: {0} seconds".format(dt))
 
-
-    model = smf.quantreg(formula=self.formula, data=self.data_frame_train)
-    results = model.fit(q=.5)
-    print(results.summary())
-
-    # Plot the model with our test data
+    #Plot the model with our test data
     ## Prediction
     self.measured = np.array(self.data_frame_test["redshift"].values)
     self.predicted = results.predict(self.data_frame_test)
@@ -190,64 +237,106 @@ class PhotoSample(object):
     self.catastrophic_error = 100.0*(abs(self.measured-self.predicted) > (0.15*(1+self.measured))).sum()/(1.0*self.measured.shape[0])
     self.logger.info("Catastrophic Error: {0}%".format(self.catastrophic_error))
 
-  def make_plot(self, show=False):
-
+  def make_1D_KDE(self):
     from matplotlib.mlab import griddata
     import matplotlib.pyplot as plt
     import seaborn as sns
 
-    # Load figure canvas
-    ##
-    fig = plt.figure(0)
+    self.logger.info("Generating 1D KDE plot...")
+    ind = range(len(self.outliers))
+    rows = list(set(np.random.choice(ind,5000)))
+    self.logger.info("Using a smaller size for space ({0} objects)".format(5000))
 
+    outliers = self.outliers[rows]
+    measured = self.measured[rows]
+    predicted = self.predicted[rows]
+
+    fig = plt.figure()
     ax = fig.add_subplot(111)
     x_straight = np.arange(0,1.6,0.1)
     
-    sns.distplot(self.outliers, hist_kws={"histtype": "stepfilled", "color": "slategray"}, ax=ax)
+    sns.distplot(outliers, hist_kws={"histtype": "stepfilled", "color": "slategray"}, ax=ax)
   
     ax.set_xlabel(r"$(z_{\rm phot}-z_{\rm spec})/1+z_{\rm spec}$", fontsize=20)
     ax.set_ylabel(r"$\rm Density$", fontsize=20)
     ax.set_position([.15,.15,.75,.75])
 
-    plt.savefig("KDE_PLOT_{0}.pdf".format("test"), format="pdf")
+    plt.savefig("PHOTZ_KDE_1D.pdf", format="pdf")
+    plt.clf()
 
-    plt.figure()
 
-    g = sns.JointGrid(self.measured, self.predicted,size=4,space=0)
-    g.plot_marginals(sns.distplot, kde=True, color="green")
-    g.plot_joint(plt.scatter, color="silver", edgecolor="white")
-    g.plot_joint(sns.kdeplot, kind="hex")
-    g.ax_joint.set(xlim=self.lims["x"], ylim=self.lims["x"])  
-    g.set_axis_labels(xlabel=r"$z_{\rm spec}$", ylabel=r"$z_{\rm phot}$")
-    g.ax_joint.errorbar(x_straight, x_straight, lw=2)
+  def make_2D_KDE(self):
 
-    # Temp solution
-    # http://stackoverflow.com/questions/21913671/subplots-adjust-with-seaborn-regplot
-    axj, axx, axy = plt.gcf().axes
-    axj.set_position([.15, .12, .7, .7])
-    axx.set_position([.15, .85, .7, .13])
-    axy.set_position([.88, .12, .13, .7])
+    from matplotlib.mlab import griddata
+    import matplotlib.pyplot as plt
+    import seaborn as sns
+
+    self.logger.info("Generating 2D KDE plot...")
+    ind = range(len(self.outliers))
+    rows = list(set(np.random.choice(ind,5000)))
+    self.logger.info("Using a smaller size for space ({0} objects)".format(5000))
+
+    outliers = self.outliers[rows]
+    measured = self.measured[rows]
+    predicted = self.predicted[rows]
+
+    fig = plt.figure()
+
+    ax = fig.add_subplot(111)
+    x_straight = np.arange(0,1.6,0.1)
+    
+    sns.distplot(outliers, hist_kws={"histtype": "stepfilled", "color": "slategray"}, ax=ax)
+  
+    ax.set_xlabel(r"$(z_{\rm phot}-z_{\rm spec})/1+z_{\rm spec}$", fontsize=20)
+    ax.set_ylabel(r"$\rm Density$", fontsize=20)
+    ax.set_position([.15,.15,.75,.75])
+
+    plt.savefig("PHOTZ_KDE_2D.pdf".format("test"), format="pdf")
+    plt.clf()
+
+  def make_violin(self):
+
+    from matplotlib.mlab import griddata
+    import matplotlib.pyplot as plt
+    import seaborn as sns
+
+    self.logger.info("Generating 2D KDE plot...")
+    ind = range(len(self.outliers))
+    rows = list(set(np.random.choice(ind,5000)))
+    self.logger.info("Using a smaller size for space ({0} objects)".format(5000))
+
+    outliers = self.outliers[rows]
+    measured = self.measured[rows]
+    predicted = self.predicted[rows]
 
     plt.figure()
 
     bins = np.arange(0,1,0.1)
-    digitized = np.digitize(self.measured, bins)
+    text_bins = ["{0}".format(i) for i in bins]
 
-    outliers = (self.measured - self.predicted)/(self.measured+1)
+    digitized = np.digitize(measured, bins)
 
-    violins = [outliers[digitized == i] for i in range(1, len(bins))]
-    violins = [i for i in violins if len(i)>1]
-    print violins
+    outliers2 = (measured - predicted)/(measured+1)
+
+    violins = [outliers2[digitized == i] for i in range(1, len(bins))]
+    dbin = (bins[1]-bins[0])/2.
+
+    final_violin, final_names = [], []
+
+    for i in range(len(violins)):
+
+      if len(violins[i]) > 1:
+        final_violin.append(violins[i])
+        final_names.append(bins[i] + dbin)
+
     sns.offset_spines()
-    sns.violinplot(violins)
+    ax = sns.violinplot(final_violin, names=final_names)
     sns.despine(trim=True)
 
-    plt.savefig("KDE_2D_PLOT_{0}.pdf".format("test"), format="pdf")
-    if show:
-      plt.show()
+    ax.set_ylabel(r"$(z_{\rm phot}-z_{\rm spec})/1+z_{\rm spec}$", fontsize=20)
+    ax.set_xlabel(r"$z_{\rm spec}$", fontsize=20)
 
-  def print_info(self):
-    self.logger.info("Everything is ok")
+    plt.savefig("PHOTZ_VIOLIN_PLOT.pdf", format="pdf")
 
   def run_full(self, show=False):
     self.do_PCA()
@@ -260,47 +349,27 @@ class PhotoSample(object):
     self.split_sample(random=random)
     self.do_GLM()
 
-    if show:
-      self.make_plot(show=show)
-
+    self.make_1D_KDE()
+    self.make_2D_KDE()
+    self.make_violin()
 
 def main():
 
-  PHAT0 = PhotoSample(filename="../data/PHAT0.csv")
-  PHAT0.num_components = 7
-  PHAT0.test_size = 4000
-  PHAT0.formula = "redshift ~ PC1*PC2*PC3*PC4*PC5*PC6*PC7"
-  PHAT0.run_full(show=True)
+  # PHAT0 = PhotoSample(filename="../data/PHAT0.csv")
+  # PHAT0.num_components = 7
+  # PHAT0.test_size = 4000
+  # PHAT0.formula = "redshift ~ PC1*PC2*PC3*PC4*PC5*PC6*PC7"
+  # PHAT0.run_full(show=True)
 
 
-  # TWOSLAQ = PhotoSample(filename="../data/2slaq.csv")
-  # TWOSLAQ.print_info()
+  # TWOSLAQ = PhotoSample(filename="../data/2slaq.csv", family="Gamma", Testing=True)
   # TWOSLAQ.run_full(show=True)
 
-  # SDSS = PhotoSample(filename_train="../data/SDSS_train.csv", filename_test="../data/SDSS_test.csv")
-  # SDSS = PhotoSample(filename="../data/SDSS_nospec.csv")
-  # SDSS.test_size = 20000
-  # SDSS.print_info()
-  # SDSS.run_full(show=True)
-
-  # size = [1000, 2000, 5000, 7000, 10000, 20000, 30000, 40000, 50000]
-  # ce = []
-
-  # for si in size:
-  #   SDSS.test_size = si
-  #   SDSS.run_full(show=False)
-  #   ce.append(SDSS.catastrophic_error)
-
-  # import numpy
-  # ce = numpy.array(ce)
-  # size = numpy.array(size)
-
-  # import matplotlib.pyplot as plt
-
-  # fig = plt.figure(0)
-  # ax = fig.add_subplot(111)
-  # ax.errorbar(size, ce, fmt="o")
-  # plt.show()
+  # SDSS = PhotoSample(filename_train="../data/SDSS_train.csv", filename_test="../data/SDSS_test.csv", family="Quantile")
+  SDSS = PhotoSample(filename="../data/SDSS_nospec.csv", family="Gamma", link="log", Testing=False)
+  SDSS.test_size = 5000
+  SDSS.num_components = 3
+  SDSS.run_full(show=True)
 
 
 
