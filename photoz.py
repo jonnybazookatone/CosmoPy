@@ -18,6 +18,15 @@ class PhotoSample(object):
 
   def __init__(self, filename_train=False, filename_test=False, filename=False, family="Gamma", link=False, Testing=False):
 
+    """
+    Constructor for the photometric sample class.
+    This contains content related to the:
+      1. logging
+      2. PCA preferences
+      3. GLM preferences
+      4. Plotting aesthetics
+    """ 
+
     # Setup the logger to the command line
     # To a file can also be added fairly easily
     logfmt = '%(levelname)s [%(asctime)s]:\t  %(message)s'
@@ -32,7 +41,6 @@ class PhotoSample(object):
     self.logger = logger
 
     # Book keeping of what the user entered
-    self.logger.info("You gave the dataset: {0}".format(filename))
     self.filename_train = filename_train
     self.filename_test = filename_test
     self.filename = filename
@@ -44,27 +52,32 @@ class PhotoSample(object):
 
     # Plots
     self.lims = {"x": [0.3, 0.8], "y": [0.41, 0.71]}
-    self.color_palette = "seagreen"
-    #self.color_palette = "MediumPurple"
-    self.reduce_size = False
-
+    self.color_palette = "seagreen" # This is specific to seaborn
+    self.reduce_size = False  # This uses a subsample to make plots
+    self.fontsize = 30
 
     # Testing
-    self.Testing = Testing
-    self.test_size = False
-    self.num_components = False
+    self.Testing = Testing # Testing purposes
+    self.test_size = False  # The size of the training sample
+    self.num_components = False # Number of PCA components
 
     # This is for more test purposes
     if self.filename:
       self.data_frame = self.load_data_frame(filename)
-      self.logger.info("You gave a complete file, seperating training sets")
+      self.logger.info("You gave a complete file, separating training sets")
+      self.logger.info("You gave the dataset: {0}".format(filename))
 
     # This is for normal users
     elif self.filename_test and filename_train:
+      self.logger.info("You gave two separate files")
+      self.logger.info("Training dataset: {0}".format(filename_train))
+      self.logger.info("Testing dataset: {0}".format(filename_test))
+
       self.data_frame_test = self.load_data_frame(filename_test)
       self.data_frame_train = self.load_data_frame(filename_train)
 
-
+      # Join the training and testing into a single file.
+      # This is required for the PCA semi-supervised analysis
       self.data_frame = self.data_frame_test.copy()
       self.data_frame = self.data_frame.append(self.data_frame_train)
 
@@ -74,6 +87,8 @@ class PhotoSample(object):
 
 
   def load_data_frame(self, filename):
+    """Loads the file into a pandas DataFrame. Returns this to the user."""
+
     try:
       data_frame = pd.read_csv(filename, encoding="utf-8")
 
@@ -92,9 +107,12 @@ class PhotoSample(object):
       sys.exit(0)
 
   def do_PCA(self):
-    # TODO:
-    # Do the following on the fly:
-    #   3. determine test size
+    """
+    Principle Component Analysis
+    Simple PCA is used to deconstruct an N-dimensional DataFrame into a lower dimension.
+    The number of components is determined from the variance. This can be changed easily via
+    the properties of the class.
+    """
 
     from sklearn.decomposition import PCA
 
@@ -105,10 +123,10 @@ class PhotoSample(object):
 
     self.logger.info("Carrying out Principle Component Analysis ({0} components)".format(self.num_components))
     pca = PCA(self.num_components)
-
     
     pca.fit(self.data_frame[self.data_frame_header])
 
+    # We select the number of components that retain 99.95% of the variance
     x = pca.explained_variance_ratio_
     x_cf = []
     for i in range(len(x)):
@@ -129,7 +147,7 @@ class PhotoSample(object):
 
     self.num_components = j+1
 
-    
+    # Collect the PCA components
     M_pca = pca.fit_transform(self.data_frame)
 
     M_df = {}
@@ -142,7 +160,11 @@ class PhotoSample(object):
     self.PCA_data_frame = pd.DataFrame(M_df)
 
   def split_sample(self, random):
-
+    """
+    If a single dataset is given, it is required to split the sample into a training set
+    and a testing set. Also, any new PCA components are created.
+    TODO: place PCA parts in PCA, remove from this section.
+    """
     # Cross Validation Section
     ##
     if not self.test_size:
@@ -185,6 +207,13 @@ class PhotoSample(object):
 
 
   def do_GLM(self, disp=1):
+
+    """
+    Generaliesd Linear Models
+    This fits a GLM to the training data set and then fits it to the testing dataset.
+    Different families and links can be included if need be simply using the statsmodels
+    simple API.
+    """
 
     import statsmodels.api as sm
     import statsmodels.formula.api as smf
@@ -230,8 +259,8 @@ class PhotoSample(object):
       self.logger.info(results.summary())
     t2 = time.time()
 
-    dt = (t2 - t1)
-    self.logger.info("Time taken: {0} seconds".format(dt))
+    self.dt = (t2-t1)
+    self.logger.info("Time taken: {0} seconds".format(self.dt))
 
     #Plot the model with our test data
     ## Prediction
@@ -240,14 +269,46 @@ class PhotoSample(object):
 
     ## Outliers
     ## (z_phot - z_spec)/(1+z_spec)
+
+    self.deltas = abs(self.predicted - self.measured)
+    self.median = np.median(self.deltas)
+    self.std = np.std(self.deltas)
+
+    # First we will remove the outliers
+    mega_out_indx = (self.deltas/(1+self.measured)) > 0.15
+    self.num_mega_outliers = mega_out_indx.sum() / (1.0*len(self.deltas))
+    self.average = np.mean(self.deltas[mega_out_indx.__invert__()])
+
+    self.rms = np.sqrt(np.mean(self.deltas**2))
+
+    self.rms_outliers = np.sqrt(np.mean(self.deltas[mega_out_indx.__invert__()]**2))
+    self.std_outliers = np.std(self.deltas[mega_out_indx.__invert__()])
+    self.bias_outliers = np.mean(self.deltas[mega_out_indx.__invert__()])
+
+
+    self.logger.info("Median (dz):.............................................{0}".format(self.median))
+    self.logger.info("Standard deviation (dz):.................................{0}".format(self.std))
+    self.logger.info("RMS (dz).................................................{0}".format(self.rms))
+    self.logger.info("............................................................")
+    self.logger.info("Number of outliers removed...............................{0}".format(self.num_mega_outliers))
+    self.logger.info("Average (removed outliers for > 0.15) (dz):..............{0}".format(self.average))
+    self.logger.info("Standard deviation (removed outliers for > 0.15) (dz):...{0}".format(self.std_outliers))
+    self.logger.info("RMS (removed outliers for z > 0.15)......................{0}".format(self.rms_outliers))
+    self.logger.info("Bias (removed outliers for z > 0.15).....................{0}".format(self.bias_outliers))
+
     self.outliers = (self.predicted - self.measured) / (1.0 + self.measured)
 
     # R code
     # Out<-100*length(PHAT0.Pred$fit[(abs(PHAT0.test.PCA$redshift-PHAT0.Pred$fit))>0.15*(1+PHAT0.test.PCA$redshift)])/length(PHAT0.Pred$fit)
     self.catastrophic_error = 100.0*(abs(self.measured-self.predicted) > (0.15*(1+self.measured))).sum()/(1.0*self.measured.shape[0])
-    self.logger.info("Catastrophic Error: {0}%".format(self.catastrophic_error))
+    self.logger.info("Catastrophic Error:...............................{0}%".format(self.catastrophic_error))
 
   def make_1D_KDE(self):
+
+    """
+    Makes a 1 dimensional probability density of the outliers. See the publication
+    for a definition of outliers.
+    """
     from matplotlib.mlab import griddata
     import matplotlib.pyplot as plt
     import seaborn as sns
@@ -267,16 +328,28 @@ class PhotoSample(object):
     
     sns.distplot(outliers, hist_kws={"histtype": "stepfilled", "color": "slategray"}, ax=ax, color=self.color_palette)
   
-    ax.set_xlabel(r"$(z_{\rm phot}-z_{\rm spec})/(1+z_{\rm spec})$", fontsize=20)
-    ax.set_ylabel(r"$\rm Density$", fontsize=20)
-    ax.set_position([.15,.15,.75,.75])
+    ax.set_xlabel(r"$(z_{\rm phot}-z_{\rm spec})/(1+z_{\rm spec})$", fontsize=self.fontsize)
+    ax.set_ylabel(r"$\rm Density$", fontsize=self.fontsize)
+    ax.set_position([.15,.17,.75,.75])
 
     ax.set_xlim([-0.15,0.15])
 
+    for item in ([ax.xaxis.label, ax.yaxis.label]):
+            item.set_fontsize(self.fontsize)
+
+    for item in (ax.get_xticklabels() + ax.get_yticklabels()):
+            item.set_fontsize(self.fontsize-10)
+
+    self.kde_1d_ax = ax
     plt.savefig("PHOTZ_KDE_1D_{0}.pdf".format(self.family_name), format="pdf")
 
 
   def make_2D_KDE(self):
+
+    """
+    Makes a 2 dimensional probability density plot of the outliers. Each dimension has a 
+    probability density histogram created and placed at the top of each axis.
+    """
 
     from matplotlib.mlab import griddata
     import matplotlib.pyplot as plt
@@ -315,15 +388,26 @@ class PhotoSample(object):
     axj.set_position([.15, .12, .7, .7])
     axx.set_position([.15, .85, .7, .13])
     axy.set_position([.88, .12, .13, .7])
+
+    for item in ([axj.xaxis.label, axj.yaxis.label]):
+            item.set_fontsize(self.fontsize+10)
+
+    for item in (axj.get_xticklabels() + axj.get_yticklabels()):
+            item.set_fontsize(self.fontsize)
+
+    self.kde_2d_ax = [axj, axx, axy]
     plt.savefig("PHOTZ_KDE_2D_{0}.pdf".format(self.family_name), format="pdf")
 
   def make_violin(self):
 
+    """
+    Violin plots are made for the outliers over redshift. Each violin is a box plot, i.e.,
+    it depicts the probability density of the outliers for a given bin in redshift.
+    """
+
     from matplotlib.mlab import griddata
     import matplotlib.pyplot as plt
     import seaborn as sns
-
-    
 
     self.logger.info("Generating violin plot...")
     ind = range(len(self.outliers))
@@ -361,15 +445,27 @@ class PhotoSample(object):
     ax = sns.violinplot(final_violin, names=final_names, color=pal)
     sns.despine(trim=True)
 
-    ax.set_ylabel(r"$(z_{\rm phot}-z_{\rm spec})/(1+z_{\rm spec})$", fontsize=20)
-    ax.set_xlabel(r"$z_{\rm spec}$", fontsize=20)
+    ax.set_ylabel(r"$(z_{\rm phot}-z_{\rm spec})/(1+z_{\rm spec})$", fontsize=self.fontsize)
+    ax.set_xlabel(r"$z_{\rm spec}$", fontsize=self.fontsize)
     ax.set_ylim([-0.3,0.3])
 
+    for item in ([ax.xaxis.label, ax.yaxis.label]):
+            item.set_fontsize(self.fontsize)
+
+    for item in (ax.get_xticklabels() + ax.get_yticklabels()):
+            item.set_fontsize(self.fontsize-10)
+
+    ax.set_position([.15,.17,.75,.75])
 
     self.kde_ax = ax
     plt.savefig("PHOTZ_VIOLIN_{0}.pdf".format(self.family_name), format="pdf")
 
   def run_full(self, show=False):
+    """
+    This runs the main features of the photo-z package outlined in the publication.
+    Similar routines can be created for personal use, depending on the wanted output.
+    """
+
     self.do_PCA()
 
     if self.filename:

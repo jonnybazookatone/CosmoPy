@@ -7,7 +7,6 @@ test_file = "../data/SDSS_test_100000.csv"
 
 # I will use a gamma family with log link
 SDSS = PhotoSample(filename_train=train_file, filename_test=test_file, family="Gamma", link="log")
-
 SDSS.color_palette = "MediumPurple"
 SDSS.reduce_size = 5000
 
