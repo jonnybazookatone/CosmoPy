@@ -24,8 +24,8 @@ class PhotoSample(object):
     datefmt= '%m/%d/%Y %I:%M:%S %p'
     formatter = logging.Formatter(fmt=logfmt,datefmt=datefmt)
     logger = logging.getLogger('__main__')
-    # logging.root.setLevel(logging.DEBUG)
-    logging.root.setLevel(logging.WARNING)
+    logging.root.setLevel(logging.DEBUG)
+    #logging.root.setLevel(logging.WARNING)
     ch = logging.StreamHandler() #console handler
     ch.setFormatter(formatter)
     logger.addHandler(ch)
@@ -40,9 +40,13 @@ class PhotoSample(object):
     # GLM
     self.family_name = family
     self.link = link
+    self.formula = False
 
     # Plots
     self.lims = {"x": [0.3, 0.8], "y": [0.41, 0.71]}
+    self.color_palette = "seagreen"
+    #self.color_palette = "MediumPurple"
+    self.reduce_size = False
 
 
     # Testing
@@ -76,7 +80,7 @@ class PhotoSample(object):
       self.data_frame_header = [i for i in data_frame.columns if i not in ["redshift", "specObjID"]]
 
       if self.Testing:
-        rows = np.random.choice(data_frame.index.values, 10000)
+        rows = np.random.choice(data_frame.index.values, self.reduce_size)
         sampled_df = data_frame.ix[rows]
         return sampled_df
       
@@ -199,13 +203,16 @@ class PhotoSample(object):
       logger.info("You can only pick the family: Gamma and Quantile")
 
     # Decide the formula
-    formula = "redshift ~ "
-    for i in range(self.num_components):
-      if i<self.num_components-1:
-        formula += "PC{0}*".format(i+1)
-      else:
-        formula += "PC{0}".format(i+1)
-    self.formula = formula
+    poly = lambda x, power: x**power
+
+    if not self.formula:
+      formula = "redshift ~ poly(PC1, 2) +"
+      for i in range(self.num_components):
+        if i<self.num_components-1:
+          formula += "PC{0}*".format(i+1)
+        else:
+          formula += "PC{0}".format(i+1)
+      self.formula = formula
 
     self.logger.info("Family: {0} with \tformula: {1}\tlink: {2}".format(self.family_name, self.formula, self.link))
     self.logger.info("Fitting...")
@@ -247,8 +254,8 @@ class PhotoSample(object):
 
     self.logger.info("Generating 1D KDE plot...")
     ind = range(len(self.outliers))
-    rows = list(set(np.random.choice(ind,5000)))
-    self.logger.info("Using a smaller size for space ({0} objects)".format(5000))
+    rows = list(set(np.random.choice(ind,self.reduce_size)))
+    self.logger.info("Using a smaller size for space ({0} objects)".format(self.reduce_size))
 
     outliers = self.outliers[rows]
     measured = self.measured[rows]
@@ -258,11 +265,13 @@ class PhotoSample(object):
     ax = fig.add_subplot(111)
     x_straight = np.arange(0,1.6,0.1)
     
-    sns.distplot(outliers, hist_kws={"histtype": "stepfilled", "color": "slategray"}, ax=ax)
+    sns.distplot(outliers, hist_kws={"histtype": "stepfilled", "color": "slategray"}, ax=ax, color=self.color_palette)
   
-    ax.set_xlabel(r"$(z_{\rm phot}-z_{\rm spec})/1+z_{\rm spec}$", fontsize=20)
+    ax.set_xlabel(r"$(z_{\rm phot}-z_{\rm spec})/(1+z_{\rm spec})$", fontsize=20)
     ax.set_ylabel(r"$\rm Density$", fontsize=20)
     ax.set_position([.15,.15,.75,.75])
+
+    ax.set_xlim([-0.15,0.15])
 
     plt.savefig("PHOTZ_KDE_1D_{0}.pdf".format(self.family_name), format="pdf")
 
@@ -273,10 +282,12 @@ class PhotoSample(object):
     import matplotlib.pyplot as plt
     import seaborn as sns
 
+    pal = sns.dark_palette(self.color_palette)
+
     self.logger.info("Generating 2D KDE plot...")
     ind = range(len(self.outliers))
-    rows = list(set(np.random.choice(ind,5000)))
-    self.logger.info("Using a smaller size for space ({0} objects)".format(5000))
+    rows = list(set(np.random.choice(ind,self.reduce_size)))
+    self.logger.info("Using a smaller size for space ({0} objects)".format(self.reduce_size))
 
     outliers = self.outliers[rows]
     measured = self.measured[rows]
@@ -288,10 +299,12 @@ class PhotoSample(object):
     x_straight = np.arange(xmin, xmax+0.1, 0.1)
     plt.figure()
 
+    pal = sns.dark_palette(self.color_palette, as_cmap=True)
+
     g = sns.JointGrid(measured, predicted, size=10, space=0)
-    g.plot_marginals(sns.distplot, kde=True, color="green")
+    g.plot_marginals(sns.distplot, kde=True, color=self.color_palette)
     g.plot_joint(plt.scatter, color="silver", edgecolor="white")
-    g.plot_joint(sns.kdeplot, kind="hex")
+    g.plot_joint(sns.kdeplot, kind="hex", color=self.color_palette, cmap=pal)
     g.ax_joint.set(xlim=[xmin, xmax], ylim=[ymin, ymax])  
     g.set_axis_labels(xlabel=r"$z_{\rm spec}$", ylabel=r"$z_{\rm phot}$")
     g.ax_joint.errorbar(x_straight, x_straight, lw=2)
@@ -310,10 +323,12 @@ class PhotoSample(object):
     import matplotlib.pyplot as plt
     import seaborn as sns
 
+    
+
     self.logger.info("Generating violin plot...")
     ind = range(len(self.outliers))
-    rows = list(set(np.random.choice(ind,5000)))
-    self.logger.info("Using a smaller size for space ({0} objects)".format(5000))
+    rows = list(set(np.random.choice(ind,10000)))
+    self.logger.info("Using a smaller size for space ({0} objects)".format(self.reduce_size))
 
     outliers = self.outliers[rows]
     measured = self.measured[rows]
@@ -339,14 +354,19 @@ class PhotoSample(object):
         final_violin.append(violins[i])
         final_names.append(bins[i] + dbin)
 
+
+    pal = sns.blend_palette([self.color_palette, "lightblue"], 4)
+
     sns.offset_spines()
-    ax = sns.violinplot(final_violin, names=final_names)
+    ax = sns.violinplot(final_violin, names=final_names, color=pal)
     sns.despine(trim=True)
 
-    ax.set_ylabel(r"$(z_{\rm phot}-z_{\rm spec})/1+z_{\rm spec}$", fontsize=20)
+    ax.set_ylabel(r"$(z_{\rm phot}-z_{\rm spec})/(1+z_{\rm spec})$", fontsize=20)
     ax.set_xlabel(r"$z_{\rm spec}$", fontsize=20)
-    ax.set_ylim([-1.0,1.0])
+    ax.set_ylim([-0.3,0.3])
 
+
+    self.kde_ax = ax
     plt.savefig("PHOTZ_VIOLIN_{0}.pdf".format(self.family_name), format="pdf")
 
   def run_full(self, show=False):
@@ -367,8 +387,8 @@ class PhotoSample(object):
 def main():
 
   # PHAT0 = PhotoSample(filename="../data/PHAT0_small.csv", family="Gamma", link="log")
-  # PHAT0.num_components = 9
-  # PHAT0.test_size = 4000
+  # PHAT0.num_components = 6
+  # PHAT0.test_size = 5000
   # PHAT0.do_PCA()
   # PHAT0.formula = "redshift ~ PC1*PC2*PC3*PC4*PC5*PC6*PC7"
   # PHAT0.run_full(show=True)
@@ -377,14 +397,14 @@ def main():
   # TWOSLAQ = PhotoSample(filename="../data/2slaq_small.csv", family="Gamma", Testing=False, link="log")
   # TWOSLAQ.run_full(show=True)
 
-  # SDSS = PhotoSample(filename_train="../data/SDSS_train.csv", filename_test="../data/SDSS_test.csv", family="Gamma", link="log")
-  SDSS = PhotoSample(filename="../data/SDSS_nospec.csv", family="Gamma", link="log", Testing=False)
-  SDSS.test_size = 100
+  SDSS = PhotoSample(filename_train="../data/SDSS_train.csv", filename_test="../data/SDSS_test.csv", family="Gamma", link="log")
+  # SDSS = PhotoSample(filename="../data/SDSS_nospec.csv", family="Gamma", link="log", Testing=True)
+  # SDSS.test_size = 100
   # SDSS.num_components = 3
-  # SDSS.run_full(show=True)
-  SDSS.do_PCA()
-  SDSS.split_sample(random=True)
-  SDSS.do_GLM()
+  SDSS.run_full(show=True)
+  # SDSS.do_PCA()
+  # SDSS.split_sample(random=True)
+  # SDSS.do_GLM()
 
   # SDSS.make_1D_KDE()
   # SDSS.make_2D_KDE()
