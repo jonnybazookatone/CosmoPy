@@ -12,7 +12,7 @@ __status__ = "Prototype"
 
 import numpy as np
 import pandas as pd
-import time, argparse, logging
+import time, argparse, logging, sys
 
 class PhotoSample(object):
 
@@ -32,12 +32,17 @@ class PhotoSample(object):
     logfmt = '%(levelname)s [%(asctime)s]:\t  %(message)s'
     datefmt= '%m/%d/%Y %I:%M:%S %p'
     formatter = logging.Formatter(fmt=logfmt,datefmt=datefmt)
-    logger = logging.getLogger('__main__')
-    logging.root.setLevel(logging.DEBUG)
+
+    logger = logging.getLogger('__photoz__')
+    logger.setLevel(logging.DEBUG)
+    logger.propagate = 0
+    #logging.root.setLevel(logging.DEBUG)
     #logging.root.setLevel(logging.WARNING)
-    ch = logging.StreamHandler() #console handler
-    ch.setFormatter(formatter)
-    logger.addHandler(ch)
+    if not logger.handlers:
+      ch = logging.StreamHandler() #console handler
+      ch.setFormatter(formatter)
+      logger.addHandler(ch)
+ 
     self.logger = logger
 
     # Book keeping of what the user entered
@@ -214,7 +219,6 @@ class PhotoSample(object):
     Different families and links can be included if need be simply using the statsmodels
     simple API.
     """
-
     import statsmodels.api as sm
     import statsmodels.formula.api as smf
     import statsmodels.genmod as smg
