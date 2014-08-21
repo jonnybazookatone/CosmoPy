@@ -2,8 +2,8 @@
 from photoz import PhotoSample
 
 # Data
-train_file = "../data/SDSS_train_100000.csv"
-test_file = "../data/SDSS_test_100000.csv"
+train_file = "../data/SDSS_train.csv"
+test_file = "../data/SDSS_test.csv"
 
 # I will use a gamma family with log link
 SDSS = PhotoSample(filename_train=train_file, filename_test=test_file, family="Gamma", link="log")
