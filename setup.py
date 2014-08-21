@@ -6,7 +6,7 @@ import codecs
 import os
 import sys
 
-import sandman
+import CosmoPhotoz as photoz
 
 here = os.path.abspath(os.path.dirname(__file__))
 
@@ -19,51 +19,63 @@ def read(*filenames, **kwargs):
             buf.append(f.read())
     return sep.join(buf)
 
-long_description = read('README.md', 'CHANGES.md')
+#long_description = read('README.md', 'CHANGES.md')
 
-class PyTest(TestCommand):
-    def finalize_options(self):
-        TestCommand.finalize_options(self)
-        self.test_args = []
-        self.test_suite = True
+# Files required by the package
+cosph_files =  ['data/2slaq_small.csv']
+root_files = ['README.md', 'CHANGES.md']
 
-    def run_tests(self):
-        import pytest
-        errcode = pytest.main(self.test_args)
-        sys.exit(errcode)
+#class PyTest(TestCommand):
+#    def finalize_options(self):
+#        TestCommand.finalize_options(self)
+#        self.test_args = []
+#        self.test_suite = True
+#
+#    def run_tests(self):
+#        import pytest
+#        errcode = pytest.main(self.test_args)
+#        sys.exit(errcode)
 
 setup(
-    name='sandman',
-    version=sandman.__version__,
-    url='http://github.com/jeffknupp/sandman/',
-    license='Apache Software License',
-    author='Jeff Knupp',
-    tests_require=['pytest'],
-    install_requires=['Flask>=0.10.1',
-                    'Flask-SQLAlchemy>=1.0',
-                    'SQLAlchemy==0.8.2',
-                    ],
-    cmdclass={'test': PyTest},
-    author_email='jeff@jeffknupp.com',
-    description='Automated REST APIs for existing database-driven systems',
-    long_description=long_description,
-    packages=['sandman'],
+    name='CosmoPhotoz',
+    version=photoz.__version__,
+    url='http://github.com/COINtoolbox/COSMOPhotoz/CosmoPy',
+    license='GNU Public License',
+    author=photoz.__author__,
+    #tests_require=['pytest'],
+    #cmdclass={'test': PyTest},
+    #test_suite='sandman.test.test_sandman',
+    #extras_require={
+    #    'testing': ['pytest'],
+    #}
+    install_requires=['matplotlib>=1.3.1',
+                      'numpy>=1.8.2',
+                      'pandas>=0.14.1',
+                      'patsy>=0.3.0',
+                      'scikit-learn>=0.15.1',
+                      'scipy>=0.14.0',
+                      'seaborn>=0.3.1',
+                      'statsmodels>=0.5.0'],
+    author_email=photoz.__email__,
+    description=photoz.__doc__,
+    long_description=photoz.__doc__,
+    packages=['CosmoPhotoz'],
+    package_data={
+                 'CosmoPhotoz': cosph_files,
+                 '': root_files
+                 },
+    scripts=['CosmoPhotoz/run_glm.py'],
     include_package_data=True,
     platforms='any',
-    test_suite='sandman.test.test_sandman',
     classifiers = [
         'Programming Language :: Python',
-        'Development Status :: 4 - Beta',
+        'Development Status :: 3 - Alpha',
         'Natural Language :: English',
-        'Environment :: Web Environment',
-        'Intended Audience :: Developers',
-        'License :: OSI Approved :: Apache Software License',
+        'Environment :: X11 Applications',
+        'Intended Audience :: Science/Research',
+        'License :: OSI Approved :: GNU General Public License (GPL)',
         'Operating System :: OS Independent',
         'Topic :: Software Development :: Libraries :: Python Modules',
-        'Topic :: Software Development :: Libraries :: Application Frameworks',
-        'Topic :: Internet :: WWW/HTTP :: Dynamic Content',
+        'Topic :: Scientific/Engineering :: Astronomy',
         ],
-    extras_require={
-        'testing': ['pytest'],
-    }
 )
