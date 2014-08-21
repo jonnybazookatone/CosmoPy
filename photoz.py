@@ -53,7 +53,7 @@ class PhotoSample(object):
     # Plots
     self.lims = {"x": [0.3, 0.8], "y": [0.41, 0.71]}
     self.color_palette = "seagreen" # This is specific to seaborn
-    self.reduce_size = False  # This uses a subsample to make plots
+    self.reduce_size = 5000  # This uses a subsample to make plots
     self.fontsize = 30
 
     # Testing
