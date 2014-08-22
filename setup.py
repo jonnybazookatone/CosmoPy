@@ -9,7 +9,7 @@ import sys
 import CosmoPhotoz as photoz
 
 here = os.path.abspath(os.path.dirname(__file__))
-def read(*filenames, **kwargs):
+def readin(*filenames, **kwargs):
     encoding = kwargs.get('encoding', 'utf-8')
     sep = kwargs.get('sep', '\n')
     buf = []
@@ -18,7 +18,14 @@ def read(*filenames, **kwargs):
             buf.append(f.read())
     return sep.join(buf)
 
-long_description = read('README.md', 'CHANGES.md')
+# Convert the github markup to pypi reStructuredText
+# try:
+#     import pypandoc
+#     long_description = pypandoc.convert(source=readin('README.md'), to='rst', format='md')
+# except ImportError:
+#     print("warning: pypandoc module not found, could not convert Markdown to RST")
+
+long_description = readin('README.rst')
 
 #class PyTest(TestCommand):
 #    def finalize_options(self):
