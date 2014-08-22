@@ -8,8 +8,8 @@ import sys
 
 import CosmoPhotoz as photoz
 
-here = os.path.abspath(os.path.dirname(__file__))
 
+here = os.path.abspath(os.path.dirname(__file__))
 def read(*filenames, **kwargs):
     encoding = kwargs.get('encoding', 'utf-8')
     sep = kwargs.get('sep', '\n')
@@ -19,7 +19,7 @@ def read(*filenames, **kwargs):
             buf.append(f.read())
     return sep.join(buf)
 
-#long_description = read('README.md', 'CHANGES.md')
+long_description = read('README.md', 'CHANGES.md')
 
 # Files required by the package
 cosph_files =  ['data/2slaq_small.csv']
@@ -36,18 +36,21 @@ root_files = ['README.md', 'CHANGES.md']
 #        errcode = pytest.main(self.test_args)
 #        sys.exit(errcode)
 
+
+#tests_require=['pytest'],
+#cmdclass={'test': PyTest},
+#test_suite='sandman.test.test_sandman',
+#extras_require={
+#    'testing': ['pytest'],
+#}
+
+
 setup(
     name='CosmoPhotoz',
     version=photoz.__version__,
     url='http://github.com/COINtoolbox/COSMOPhotoz/CosmoPy',
     license='GNU Public License',
     author=photoz.__author__,
-    #tests_require=['pytest'],
-    #cmdclass={'test': PyTest},
-    #test_suite='sandman.test.test_sandman',
-    #extras_require={
-    #    'testing': ['pytest'],
-    #}
     install_requires=['matplotlib>=1.3.1',
                       'numpy>=1.8.2',
                       'pandas>=0.14.1',
@@ -58,14 +61,13 @@ setup(
                       'statsmodels>=0.5.0'],
     author_email=photoz.__email__,
     description=photoz.__doc__,
-    long_description=photoz.__doc__,
+    long_description=long_description,
     packages=['CosmoPhotoz'],
-    package_data={
-                 'CosmoPhotoz': cosph_files,
-                 '': root_files
-                 },
+    package_dir = {'CosmoPhotoz': 'CosmoPhotoz'},
+    # include_package_data=True,
+    # package_data={'': ['README.md', 'CHANGES.md'], 'CosmoPhotoz': cosph_files},
+    # data_files = [('', 'README.md')],
     scripts=['CosmoPhotoz/run_glm.py'],
-    include_package_data=True,
     platforms='any',
     classifiers = [
         'Programming Language :: Python',
