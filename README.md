@@ -53,6 +53,8 @@ for train_size in range(len(train_size_arr)):
 
 # Documentation
 
-The library documentation can be accessed at [].
-The github repository can be accessed at [].
-The PyPI package page can be accessed at [].
+ * The library documentation can be accessed at [www.github.io](www.github.io).
+
+ * The github repository can be accessed at [www.github.com](www.github.com).
+
+ * The PyPI package page can be accessed at [www.pypi.org](www.pypi.org).
