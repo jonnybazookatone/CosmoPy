@@ -4,7 +4,7 @@
 Photometric redshift library that implements Generalised Linear Models.
 """
 
-__author__ = "Jonathan Elliott"
+__author__ = "Jonathan Elliott, R. S. de Souza, A. Krone-Martins"
 __copyright__ = "Copyright 2014"
 __version__ = "1.0"
 __email__ = "jonnynelliott@googlemail.com"
@@ -71,20 +71,25 @@ class PhotoSample(object):
       self.data_frame = self.load_data_frame(filename)
       self.logger.info("You gave a complete file, separating training sets")
       self.logger.info("You gave the dataset: {0}".format(filename))
+      self.cross_validate = True
 
     # This is for normal users
     elif self.filename_test and filename_train:
       self.logger.info("You gave two separate files")
       self.logger.info("Training dataset: {0}".format(filename_train))
       self.logger.info("Testing dataset: {0}".format(filename_test))
+      self.cross_validate = False
 
       self.data_frame_test = self.load_data_frame(filename_test)
       self.data_frame_train = self.load_data_frame(filename_train)
 
+#      if not "redshift" in self.data_frame_test.columns:
+ #       self.data_frame_test["redshift"] = numpy.zeros(len(self.data_frame_test))
+
       # Join the training and testing into a single file.
       # This is required for the PCA semi-supervised analysis
-      self.data_frame = self.data_frame_test.copy()
-      self.data_frame = self.data_frame.append(self.data_frame_train)
+      self.data_frame = self.data_frame_train.copy()
+      self.data_frame = self.data_frame.append(self.data_frame_test)
 
     else:
       self.logger.warning("You must give a training and test set or a complete file.")
@@ -124,45 +129,48 @@ class PhotoSample(object):
     # Number of components
     if not self.num_components:
       self.num_components = len([i for i in self.data_frame.columns if i != "redshift"])
-    
 
     self.logger.info("Carrying out Principle Component Analysis ({0} components)".format(self.num_components))
     pca = PCA(self.num_components)
-    
+
     pca.fit(self.data_frame[self.data_frame_header])
 
-    # We select the number of components that retain 99.95% of the variance
-    x = pca.explained_variance_ratio_
-    x_cf = []
-    for i in range(len(x)):
-      if i>0: x_cf.append(x[i]+x_cf[i-1])
-      else: x_cf.append(x[i])
-    x_cf = x_cf
+    if not self.num_components:
 
-    j = False
-    for i in range(len(x_cf)):
-      if x_cf[i]>0.9995:
-        j = i
-        break
-    if not j: j = len(x_cf)-1
+      # We select the number of components that retain 99.95% of the variance
+      x = pca.explained_variance_ratio_
+      x_cf = []
+      for i in range(len(x)):
+        if i>0: x_cf.append(x[i]+x_cf[i-1])
+        else: x_cf.append(x[i])
+      x_cf = x_cf
 
-    self.logger.info("explained variance: {0}".format(pca.explained_variance_ratio_))
-    self.logger.info("CDF: {0}".format(x_cf))
-    self.logger.info("99.5% variance reached with {0} components".format(j+1))
+      j = False
+      for i in range(len(x_cf)):
+        if x_cf[i]>0.9995:
+          j = i
+          break
+      if not j: j = len(x_cf)-1
 
-    self.num_components = j+1
+      self.logger.info("explained variance: {0}".format(pca.explained_variance_ratio_))
+      self.logger.info("CDF: {0}".format(x_cf))
+      self.logger.info("99.5% variance reached with {0} components".format(j+1))
+
+      self.num_components = j+1
 
     # Collect the PCA components
-    M_pca = pca.fit_transform(self.data_frame)
+    M_pca = pca.fit_transform(self.data_frame[self.data_frame_header])
 
     M_df = {}
     M_df["redshift"] = self.data_frame["redshift"].values
 
+    print self.num_components
     for i in range(self.num_components):
+      print i
       M_df["PC{0:d}".format(i+1)] = M_pca[:,i]
 
-
     self.PCA_data_frame = pd.DataFrame(M_df)
+    print self.PCA_data_frame.shape
 
   def split_sample(self, random):
     """
@@ -175,15 +183,14 @@ class PhotoSample(object):
     if not self.test_size:
       self.test_size = int(self.data_frame.shape[0]*0.2)
 
-    self.logger.info("Splitting into training/testing sets. Number of testing: {0}".format(self.test_size))
-    ## Split into train/test
-      
+      self.logger.info("Splitting into training/testing sets.")
+
+    ## Split into train/test      
     if random:
       from sklearn.cross_validation import train_test_split
       test, train = train_test_split(self.PCA_data_frame, test_size=int(self.test_size), random_state=42)
     else:
       left = self.data_frame_train.shape[0]
-
       train = self.PCA_data_frame[:left]
       test = self.PCA_data_frame[left:]
 
@@ -193,10 +200,13 @@ class PhotoSample(object):
     ## Redefine some DataFrames, otherwise they are just numpy arrays
     col_train = {}
     col_test = {}
+
+    print test.shape
     try:
       col_train["redshift"] = train[:,-1]
       col_test["redshift"] = test[:,-1]
       for i in range(self.num_components):
+        print i+1
         col_train["PC{0:d}".format(i+1)] = train[:,i]
         col_test["PC{0:d}".format(i+1)] = test[:,i]
 
@@ -266,10 +276,16 @@ class PhotoSample(object):
     self.dt = (t2-t1)
     self.logger.info("Time taken: {0} seconds".format(self.dt))
 
+ 
     #Plot the model with our test data
     ## Prediction
-    self.measured = np.array(self.data_frame_test["redshift"].values)
-    self.predicted = results.predict(self.data_frame_test)
+    if self.cross_validate:
+      self.logger.info("Cross validating")
+      self.measured = np.array(self.data_frame_test["redshift"].values)
+      self.predicted = results.predict(self.data_frame_test)
+    else:
+      self.measured = np.array(self.data_frame_train["redshift"].values)
+      self.predicted = results.predict(self.data_frame_train)
 
     ## Outliers
     ## (z_phot - z_spec)/(1+z_spec)
@@ -305,7 +321,13 @@ class PhotoSample(object):
     # R code
     # Out<-100*length(PHAT0.Pred$fit[(abs(PHAT0.test.PCA$redshift-PHAT0.Pred$fit))>0.15*(1+PHAT0.test.PCA$redshift)])/length(PHAT0.Pred$fit)
     self.catastrophic_error = 100.0*(abs(self.measured-self.predicted) > (0.15*(1+self.measured))).sum()/(1.0*self.measured.shape[0])
-    self.logger.info("Catastrophic Error:...............................{0}%".format(self.catastrophic_error))
+    self.logger.info("Catastrophic Error:......................................{0}%".format(self.catastrophic_error))
+
+  def write_to_file(self):
+    """
+    If the user gave a second file to make a prediction it writes the fit to a file.
+    """
+    self.data_frame_test.to_csv("photoz_fitted.csv")
 
   def make_1D_KDE(self):
 
@@ -451,7 +473,7 @@ class PhotoSample(object):
 
     ax.set_ylabel(r"$(z_{\rm phot}-z_{\rm spec})/(1+z_{\rm spec})$", fontsize=self.fontsize)
     ax.set_xlabel(r"$z_{\rm spec}$", fontsize=self.fontsize)
-    ax.set_ylim([-0.3,0.3])
+    ax.set_ylim([-0.4,0.4])
 
     for item in ([ax.xaxis.label, ax.yaxis.label]):
             item.set_fontsize(self.fontsize)
@@ -484,39 +506,11 @@ class PhotoSample(object):
     self.make_2D_KDE()
     self.make_violin()
 
+    if self.cross_validate:
+      self.write_to_file()
+
 def main():
-
-  # PHAT0 = PhotoSample(filename="../data/PHAT0_small.csv", family="Gamma", link="log")
-  # PHAT0.num_components = 6
-  # PHAT0.test_size = 5000
-  # PHAT0.do_PCA()
-  # PHAT0.formula = "redshift ~ PC1*PC2*PC3*PC4*PC5*PC6*PC7"
-  # PHAT0.run_full(show=True)
-
-
-  # TWOSLAQ = PhotoSample(filename="../data/2slaq_small.csv", family="Gamma", Testing=False, link="log")
-  # TWOSLAQ.run_full(show=True)
-
-  SDSS = PhotoSample(filename_train="../data/SDSS_train.csv", filename_test="../data/SDSS_test.csv", family="Gamma", link="log")
-  # SDSS = PhotoSample(filename="../data/SDSS_nospec.csv", family="Gamma", link="log", Testing=True)
-  # SDSS.test_size = 100
-  # SDSS.num_components = 3
-  SDSS.run_full(show=True)
-  # SDSS.do_PCA()
-  # SDSS.split_sample(random=True)
-  # SDSS.do_GLM()
-
-  # SDSS.make_1D_KDE()
-  # SDSS.make_2D_KDE()
-  # SDSS.make_violin()
-
-
+  print(__doc__)
 
 if __name__=='__main__':
-
-  # parser = argparse.ArgumentParser(usage=__doc__)
-  # parser.add_argument('-d','--dataset',dest="dataset",default=None, required=True)
-
-  # args = parser.parse_args()
-
   main()
