@@ -25,8 +25,7 @@ Or if the tarball or repository is downloaded, distutils can be used.
      --num_components 3\
      --train_size 10000\
      --family Gamma\
-     --link log
-```
+     --link log```
 
 # Imported class
 
