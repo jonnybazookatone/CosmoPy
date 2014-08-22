@@ -6,7 +6,7 @@ The method utilises Generalized Linear Models which reproduce the physical aspec
 The rest of the methodology and testing of the technique is described in the associated Astronomy and Computing
 publication that can be accessed at [link].
 
-# Installation
+## Installation
 
 The package can be installed using the PyPI and pip.
 
@@ -17,15 +17,18 @@ Or if the tarball or repository is downloaded, distutils can be used.
 `python setup.py install`
 
 
-# Usage
+## Usage
 
-```run_glm.py --dataset sample.csv
-               --num_components 3
-               --train_size 10000
-               --family Gamma
-               --link log
+# Command line
+
+```run_glm.py --dataset sample.csv\
+     --num_components 3\
+     --train_size 10000\
+     --family Gamma\
+     --link log
 ```
 
+# Imported class
 
 ```
     import numpy as np
@@ -48,5 +51,3 @@ Or if the tarball or repository is downloaded, distutils can be used.
             numpy.array(catastrophic_error) < 0.01
      optimimum_train_size = train_size[min_indx]
 ```
-
-
