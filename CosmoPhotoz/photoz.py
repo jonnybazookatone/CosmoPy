@@ -450,6 +450,7 @@ class PhotoSample(object):
 
     violins = [outliers2[digitized == i] for i in range(1, len(bins))]
     dbin = (bins[1]-bins[0])/2.
+    bins += dbin
 
     final_violin, final_names = [], []
 
@@ -457,7 +458,7 @@ class PhotoSample(object):
 
       if len(violins[i]) > 1:
         final_violin.append(violins[i])
-        final_names.append(bins[i] + dbin)
+        final_names.append(bins[i])
 
     pal = sns.blend_palette([self.color_palette, "lightblue"], 4)
 
@@ -469,7 +470,7 @@ class PhotoSample(object):
     ax.set_xlabel(r"$z_{\rm spec}$", fontsize=self.fontsize)
     ax.set_ylim([-0.5,0.5])
 
-    xtix = ax.get_xticks().tolist()
+    xtix = [i.get_text() for i in ax.get_xticklabels()]
     new_xtix = [xtix[i] if (i % 2 == 0) else "" for i in range(len(xtix))]
     ax.set_xticklabels(new_xtix)
 
