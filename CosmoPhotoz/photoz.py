@@ -164,13 +164,10 @@ class PhotoSample(object):
     M_df = {}
     M_df["redshift"] = self.data_frame["redshift"].values
 
-    print self.num_components
     for i in range(self.num_components):
-      print i
       M_df["PC{0:d}".format(i+1)] = M_pca[:,i]
 
     self.PCA_data_frame = pd.DataFrame(M_df)
-    print self.PCA_data_frame.shape
 
   def split_sample(self, random):
     """
@@ -201,12 +198,10 @@ class PhotoSample(object):
     col_train = {}
     col_test = {}
 
-    print test.shape
     try:
       col_train["redshift"] = train[:,-1]
       col_test["redshift"] = test[:,-1]
       for i in range(self.num_components):
-        print i+1
         col_train["PC{0:d}".format(i+1)] = train[:,i]
         col_test["PC{0:d}".format(i+1)] = test[:,i]
 
@@ -392,7 +387,7 @@ class PhotoSample(object):
     measured = self.measured[rows]
     predicted = self.predicted[rows]
 
-    xmin, xmax = 0, measured.max()
+    xmin, xmax = 0, self.data_frame["redshift"].max()
     ymin, ymax = 0, xmax
 
     x_straight = np.arange(xmin, xmax+0.1, 0.1)
@@ -445,13 +440,13 @@ class PhotoSample(object):
     predicted = self.predicted[rows]
 
     plt.figure()
-
-    bins = np.arange(0,1,0.1)
+    
+    bins = np.arange(0,self.measured.max()+0.1,0.1)
     text_bins = ["{0}".format(i) for i in bins]
 
     digitized = np.digitize(measured, bins)
 
-    outliers2 = (measured - predicted)/(measured+1)
+    outliers2 = (predicted - measured)/(measured+1)
 
     violins = [outliers2[digitized == i] for i in range(1, len(bins))]
     dbin = (bins[1]-bins[0])/2.
@@ -464,7 +459,6 @@ class PhotoSample(object):
         final_violin.append(violins[i])
         final_names.append(bins[i] + dbin)
 
-
     pal = sns.blend_palette([self.color_palette, "lightblue"], 4)
 
     sns.offset_spines()
@@ -473,7 +467,11 @@ class PhotoSample(object):
 
     ax.set_ylabel(r"$(z_{\rm phot}-z_{\rm spec})/(1+z_{\rm spec})$", fontsize=self.fontsize)
     ax.set_xlabel(r"$z_{\rm spec}$", fontsize=self.fontsize)
-    ax.set_ylim([-0.4,0.4])
+    ax.set_ylim([-0.5,0.5])
+
+    xtix = ax.get_xticks().tolist()
+    new_xtix = [xtix[i] if (i % 2 == 0) else "" for i in range(len(xtix))]
+    ax.set_xticklabels(new_xtix)
 
     for item in ([ax.xaxis.label, ax.yaxis.label]):
             item.set_fontsize(self.fontsize)

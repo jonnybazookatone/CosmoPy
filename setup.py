@@ -8,7 +8,6 @@ import sys
 
 import CosmoPhotoz as photoz
 
-
 here = os.path.abspath(os.path.dirname(__file__))
 def read(*filenames, **kwargs):
     encoding = kwargs.get('encoding', 'utf-8')
@@ -20,10 +19,6 @@ def read(*filenames, **kwargs):
     return sep.join(buf)
 
 long_description = read('README.md', 'CHANGES.md')
-
-# Files required by the package
-cosph_files =  ['data/2slaq_small.csv']
-root_files = ['README.md', 'CHANGES.md']
 
 #class PyTest(TestCommand):
 #    def finalize_options(self):
@@ -64,9 +59,6 @@ setup(
     long_description=long_description,
     packages=['CosmoPhotoz'],
     package_dir = {'CosmoPhotoz': 'CosmoPhotoz'},
-    # include_package_data=True,
-    # package_data={'': ['README.md', 'CHANGES.md'], 'CosmoPhotoz': cosph_files},
-    # data_files = [('', 'README.md')],
     scripts=['CosmoPhotoz/run_glm.py'],
     platforms='any',
     classifiers = [
