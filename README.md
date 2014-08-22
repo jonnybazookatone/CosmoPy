@@ -22,9 +22,13 @@ Or if the tarball or repository is downloaded, distutils can be used.
 # Command line
 
 ```run_glm.py --dataset sample.csv\
+
      --num_components 3\
+
      --train_size 10000\
+
      --family Gamma\
+
      --link log```
 
 # Imported class
